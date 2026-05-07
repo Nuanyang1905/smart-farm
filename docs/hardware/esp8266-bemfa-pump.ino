@@ -1,5 +1,5 @@
 /*
- * ESP-01S MQTT 透明网桥 for 巴法云 (Bemfa Cloud)
+ * ESP-01S MQTT 透明网桥 for 巴法云 (Bemfa Cloud) — 稳定版
  *
  * 职责：WiFi + MQTT + 串口透明转发，不做任何控制逻辑
  *   MQTT 消息 → 原样转发到串口 → Arduino 主控处理
@@ -46,7 +46,12 @@ const char* TOPIC_STATE   = "waterpump001state";
 
 // Timing (milliseconds)
 const unsigned long MQTT_RECONNECT_DELAY_MS = 5000;
-const unsigned long WIFI_RECONNECT_DELAY_MS = 10000;
+const unsigned long WIFI_RECONNECT_DELAY_MS = 30000;  // 30s 而不是每次都试
+const unsigned long WIFI_WATCHDOG_MS        = 60000;  // 60s 无连接则硬重启 WiFi
+
+// MQTT
+const int MQTT_KEEPALIVE_SEC = 60;   // 60s 心跳
+const int MQTT_BUFFER_SIZE    = 256;  // 包缓冲（Arduino JSON ~100字节）
 
 // =============================================================================
 // 2. GLOBAL STATE
@@ -56,12 +61,19 @@ WiFiClient   wifiClient;
 PubSubClient mqttClient(wifiClient);
 
 unsigned long lastMqttAttempt = 0;
+unsigned long lastWifiAttempt = 0;
+unsigned long lastWifiSuccess = 0;  // 上次 WiFi 正常的时间
 
-// Serial receive buffer (line-based, \n terminated)
-String serialBuf = "";
+// Serial receive buffer -- 用 char[] 代替 String，避免堆碎片
+#define SERIAL_BUF_SIZE 200
+char  serialBuf[SERIAL_BUF_SIZE];
+byte  serialBufPos = 0;
+
+// 断连计数，用于看门狗策略
+byte wifiFailCount = 0;
 
 // =============================================================================
-// 3. WIFI
+// 3. WIFI -- 加强版
 // =============================================================================
 
 void setupWiFi() {
@@ -70,6 +82,8 @@ void setupWiFi() {
 
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
+  // 关闭省电模式，保持 WiFi 常连接
+  WiFi.setSleepMode(WIFI_NONE_SLEEP);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
   int attempts = 0;
@@ -81,23 +95,43 @@ void setupWiFi() {
 
   if (WiFi.status() == WL_CONNECTED) {
     DBGLN(F("\nWiFi connected"));
-    DBG(F("IP address: "));
+    DBG(F("IP: "));
     DBGLN(WiFi.localIP());
+    DBG(F("RSSI: "));
+    DBGLN(WiFi.RSSI());
+    lastWifiSuccess = millis();
   } else {
-    DBGLN(F("\nWiFi connection FAILED -- will retry in loop()"));
+    DBGLN(F("\nWiFi FAILED -- retrying in loop()"));
   }
 }
 
-unsigned long lastWifiAttempt = 0;
-
 void handleWiFi() {
-  if (WiFi.status() != WL_CONNECTED) {
-    unsigned long now = millis();
-    if (now - lastWifiAttempt < WIFI_RECONNECT_DELAY_MS) return;
-    lastWifiAttempt = now;
-    DBGLN(F("WiFi lost -- reconnecting..."));
-    WiFi.reconnect();
+  unsigned long now = millis();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    lastWifiSuccess = now;
+    wifiFailCount = 0;
+    return;
   }
+
+  // WiFi 断开超过 60 秒 → 硬重启 WiFi 栈
+  if (lastWifiSuccess != 0 && (now - lastWifiSuccess > WIFI_WATCHDOG_MS)) {
+    DBGLN(F("WiFi down too long, full reset..."));
+    WiFi.disconnect(true);
+    delay(500);
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    lastWifiSuccess = now;
+    return;
+  }
+
+  // 普通重连，间隔 30s
+  if (now - lastWifiAttempt < WIFI_RECONNECT_DELAY_MS) return;
+  lastWifiAttempt = now;
+  wifiFailCount++;
+  DBG(F("WiFi reconnecting (#"));
+  DBG(wifiFailCount);
+  DBGLN(F(")..."));
+  WiFi.reconnect();
 }
 
 // =============================================================================
@@ -107,11 +141,13 @@ void handleWiFi() {
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   // Forward MQTT message verbatim to Arduino via Serial
   Serial.write(payload, length);
-  Serial.println();  // terminate line
+  Serial.println();
   Serial.flush();
 
   DBG(F("MQTT -> Serial: "));
-  DBG((char*)payload);
+  for (unsigned int i = 0; i < length && i < 64; i++) {
+    DBG((char)payload[i]);
+  }
   DBGLN();
 }
 
@@ -120,19 +156,21 @@ void connectMQTT() {
   if (now - lastMqttAttempt < MQTT_RECONNECT_DELAY_MS) return;
   lastMqttAttempt = now;
 
+  // 只有 WiFi 连上时才试 MQTT
+  if (WiFi.status() != WL_CONNECTED) return;
+
   DBG(F("MQTT connecting..."));
   if (mqttClient.connect(BEMFA_UID)) {
     DBGLN(F(" connected"));
     if (mqttClient.subscribe(TOPIC_CMD)) {
-      DBG(F("Subscribed to: "));
+      DBG(F("Subscribed: "));
       DBGLN(TOPIC_CMD);
     } else {
       DBGLN(F("Subscribe FAILED"));
     }
   } else {
     DBG(F(" failed, rc="));
-    DBG(mqttClient.state());
-    DBGLN(F(" retrying..."));
+    DBGLN(mqttClient.state());
   }
 }
 
@@ -144,17 +182,18 @@ void handleMQTT() {
 }
 
 // =============================================================================
-// 5. SERIAL -- forward Arduino JSON to MQTT
+// 5. SERIAL -- forward Arduino JSON to MQTT (无 String 版本)
 // =============================================================================
 
-void forwardToMQTT(const String& line) {
-  if (line.length() == 0) return;
+void forwardToMQTT(const char* line, byte len) {
+  if (len == 0) return;
 
-  DBG(F("Serial → MQTT: "));
-  DBGLN(line);
+  DBG(F("Serial -> MQTT: "));
+  for (byte i = 0; i < len; i++) DBG(line[i]);
+  DBGLN();
 
   if (mqttClient.connected()) {
-    mqttClient.publish(TOPIC_STATE, line.c_str());
+    mqttClient.publish(TOPIC_STATE, (uint8_t*)line, len);
   }
 }
 
@@ -162,13 +201,16 @@ void readSerial() {
   while (Serial.available()) {
     char c = (char)Serial.read();
     if (c == '\n') {
-      forwardToMQTT(serialBuf);
-      serialBuf = "";
+      serialBuf[serialBufPos] = '\0';
+      forwardToMQTT(serialBuf, serialBufPos);
+      serialBufPos = 0;
     } else if (c != '\r') {
-      serialBuf += c;
-    }
-    if (serialBuf.length() > 192) {
-      serialBuf = "";
+      if (serialBufPos < SERIAL_BUF_SIZE - 1) {
+        serialBuf[serialBufPos++] = c;
+      } else {
+        // 溢出，丢弃这一帧
+        serialBufPos = 0;
+      }
     }
   }
 }
@@ -182,20 +224,25 @@ void setup() {
   delay(100);
 
   DBGLN(F("\n========================================"));
-  DBGLN(F("ESP-01S MQTT Bridge v2.0"));
+  DBGLN(F("ESP-01S MQTT Bridge v3.0 (stable)"));
   DBGLN(F("========================================"));
 
   setupWiFi();
 
+  // MQTT 配置
   mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
   mqttClient.setCallback(mqttCallback);
+  mqttClient.setKeepAlive(MQTT_KEEPALIVE_SEC);
+  mqttClient.setBufferSize(MQTT_BUFFER_SIZE);
 
-  DBGLN(F("Bridge ready -- forwarding MQTT <-> Serial"));
+  DBGLN(F("Bridge ready"));
 }
 
 void loop() {
   handleWiFi();
   handleMQTT();
   readSerial();
-  yield();
+
+  // ESP8266 看门狗喂狗 + 释放 CPU 给 WiFi 栈
+  delay(1);
 }
