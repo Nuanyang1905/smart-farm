@@ -51,14 +51,14 @@ class _WateringHomeScreenState extends State<WateringHomeScreen> {
       ),
       body: Selector<WateringViewModel, _CardData>(
         selector: (_, vm) => _CardData(
-          deviceState: vm.deviceState.copyWith(),
+          deviceState: vm.deviceState,
           isConnected: vm.isConnected,
           isOperating: vm.isOperating,
           connectionState: vm.connectionState,
         ),
         builder: (context, data, _) {
           return RefreshIndicator(
-            onRefresh: () => context.read<WateringViewModel>().reconnect(),
+            onRefresh: () => context.read<WateringViewModel>().refresh(),
             color: cs.primary,
             child: ListView(
               physics: const ClampingScrollPhysics(),

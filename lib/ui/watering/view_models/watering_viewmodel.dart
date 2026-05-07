@@ -22,6 +22,9 @@ class WateringViewModel extends ChangeNotifier with WidgetsBindingObserver {
   final List<String> _logs = [];
   bool _isOperating = false;
   int _lastHumidity = -1;
+  DateTime? _lastLogNotify;
+  int _consecutiveFailures = 0;
+  static const int _maxConsecutiveFailures = 3;
 
   // 命令回声保护期
   bool? _pendingPumpState;
@@ -66,7 +69,13 @@ class WateringViewModel extends ChangeNotifier with WidgetsBindingObserver {
       if (_logs.length > 100) {
         _logs.removeLast();
       }
-      notifyListeners();
+      // 节流：日志每 5 秒最多触发一次 UI 重建
+      final now = DateTime.now();
+      if (_lastLogNotify == null ||
+          now.difference(_lastLogNotify!).inSeconds >= 5) {
+        _lastLogNotify = now;
+        notifyListeners();
+      }
     });
   }
 
@@ -82,6 +91,28 @@ class WateringViewModel extends ChangeNotifier with WidgetsBindingObserver {
     _pollTimer?.cancel();
     _pollTimer = null;
     _updateConnectionState(AppDeviceConnectionState.disconnected);
+  }
+
+  Future<void> refresh() async {
+    if (!isConnected) {
+      await connect();
+    } else {
+      await _pollLatest();
+    }
+  }
+
+  /// 切到其他 Tab 时暂停轮询，省电省流量
+  void pause() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  /// 切回灌溉 Tab 时恢复轮询
+  void resume() {
+    if (_pollTimer == null &&
+        _connectionState != AppDeviceConnectionState.disconnected) {
+      _startPolling();
+    }
   }
 
   Future<void> reconnect() async {
@@ -121,15 +152,23 @@ class WateringViewModel extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final latest = await _apiService.fetchLatestState();
       if (latest != null) {
+        _consecutiveFailures = 0;
         _updateConnectionState(AppDeviceConnectionState.online);
         _deviceState = _mergeIncomingState(latest);
         _adjustPollSpeed();
         notifyListeners();
       } else {
-        _updateConnectionState(AppDeviceConnectionState.disconnected);
+        // 连续 N 次失败才标记离线，避免网络瞬断闪烁
+        _consecutiveFailures++;
+        if (_consecutiveFailures >= _maxConsecutiveFailures) {
+          _updateConnectionState(AppDeviceConnectionState.disconnected);
+        }
       }
     } catch (_) {
-      _updateConnectionState(AppDeviceConnectionState.failed);
+      _consecutiveFailures++;
+      if (_consecutiveFailures >= _maxConsecutiveFailures) {
+        _updateConnectionState(AppDeviceConnectionState.failed);
+      }
     } finally {
       _isPolling = false;
     }

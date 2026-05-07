@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'ui/core/theme.dart';
+import 'ui/watering/view_models/watering_viewmodel.dart';
 import 'ui/watering/widgets/watering_home_screen.dart';
 import 'ui/miniarm/widgets/scan_screen.dart';
 import 'ui/miniarm/widgets/ble_unsupported_screen.dart';
@@ -40,6 +41,10 @@ class _AppShellState extends State<AppShell> {
           selectedIndex: _selectedIndex,
           onDestinationSelected: (index) {
             if (index != _selectedIndex) {
+              // 切走灌溉 Tab 暂停轮询，切回来恢复
+              final wp = context.read<WateringViewModel>();
+              if (_selectedIndex == 0) wp.pause();
+              if (index == 0) wp.resume();
               setState(() => _selectedIndex = index);
             }
           },
