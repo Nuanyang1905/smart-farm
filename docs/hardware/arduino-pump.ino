@@ -355,6 +355,10 @@ void refreshLCD(unsigned long now) {
   if (now - lastDisplayTime < LCD_REFRESH_INTERVAL) return;
   lastDisplayTime = now;
 
+  // I²C 探活：如果总线锁死（继电器干扰常见），跳过本次刷新
+  Wire.beginTransmission(0x27);
+  if (Wire.endTransmission() != 0) return;
+
   mylcd.setCursor(0, 0);
   if (sensorError) {
     mylcd.print("ERR: SENSOR!    ");
