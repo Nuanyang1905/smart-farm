@@ -44,9 +44,20 @@ class _ControlScreenState extends State<ControlScreen> {
       (state) {
         if (state == BleConnectionState.disconnected && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('蓝牙已断开，返回扫描页')),
+            const SnackBar(
+              content: Text('蓝牙断开，正在自动重连...'),
+              duration: Duration(seconds: 3),
+            ),
           );
-          Navigator.popUntil(context, (route) => route.isFirst);
+          // 不立即弹回，给自动重连一个机会
+        }
+        if (state == BleConnectionState.connected && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('蓝牙已重新连接'),
+              duration: Duration(seconds: 2),
+            ),
+          );
         }
       },
     );

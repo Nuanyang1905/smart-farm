@@ -65,7 +65,9 @@ class bleCharacteristicCallbacks : public BLECharacteristicCallbacks
 void init_ble()
 {
     BLEDevice::init(BLE_NAME); // 填写自身对外显示的蓝牙设备名称，并初始化蓝牙功能
-    BLEDevice::startAdvertising();   // 开启Advertising广播
+
+    // 发射功率开到最大（+9dBm），增强信号稳定性
+    BLEDevice::setPower(ESP_PWR_LVL_P9);
 
     BLEServer *pServer = BLEDevice::createServer();  // 创建服务器
     pServer->setCallbacks(new bleServerCallbacks()); // 绑定回调函数
@@ -76,10 +78,14 @@ void init_ble()
         BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_NOTIFY |
             BLECharacteristic::PROPERTY_WRITE);
-    // 如果客户端连上设备后没有任何写入的情况下第一次读取到的数据应该是这里设置的值
     pCharacteristic->setCallbacks(new bleCharacteristicCallbacks());
-    pCharacteristic->addDescriptor(new BLE2902()); // 添加描述 
-    pService->start(); // 启动服务
+    pCharacteristic->addDescriptor(new BLE2902());
+    pService->start();
+
+    // 设置广播中的连接参数，让手机使用更快的连接间隔（默认慢）
+    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+    pAdvertising->setMinInterval(0x0006);   // 7.5ms 最小连接间隔
+    pAdvertising->setMaxInterval(0x000C);   // 15ms 最大连接间隔
     BLEDevice::startAdvertising();
 }
 

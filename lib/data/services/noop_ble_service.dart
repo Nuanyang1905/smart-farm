@@ -63,6 +63,11 @@ class NoopBleService implements BleServiceInterface {
   }
 
   @override
+  void forgetDevice() {
+    // 无操作
+  }
+
+  @override
   void sendCommand(List<int> bytes) {
     // 无操作
   }

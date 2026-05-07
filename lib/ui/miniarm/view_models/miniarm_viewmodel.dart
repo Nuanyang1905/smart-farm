@@ -134,7 +134,7 @@ class MiniArmViewModel extends ChangeNotifier {
   }
 
   Future<void> disconnectDevice() async {
-    await _bleService.disconnect();
+    _bleService.forgetDevice();  // 主动断开 + 停止自动重连
   }
 
   // ========== 配置更新 ==========

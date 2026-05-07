@@ -40,8 +40,11 @@ abstract class BleServiceInterface {
   /// 连接设备
   Future<void> connect(String deviceId);
 
-  /// 断开连接
+  /// 断开连接（保留自动重连目标）
   Future<void> disconnect();
+
+  /// 主动断开并清除重连记忆
+  void forgetDevice();
 
   /// 发送数据（入队）
   void sendCommand(List<int> bytes);

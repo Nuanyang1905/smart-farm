@@ -21,6 +21,8 @@ class BleService implements BleServiceInterface {
       'beb5483e-36e1-4688-b7f5-ea07361b26a8';
   static const int mtu = 250;
   static const int sendIntervalMs = 20;
+  static const int _reconnectDelayMs = 2000;
+  static const int _maxReconnectAttempts = 5;
 
   BluetoothDevice? _connectedDevice;
   BluetoothCharacteristic? _characteristic;
@@ -50,6 +52,9 @@ class BleService implements BleServiceInterface {
 
   final Queue<List<int>> _sendQueue = Queue<List<int>>();
   Timer? _sendTimer;
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  String? _lastDeviceId;
   bool _isWriting = false;
 
   BleConnectionState _state = BleConnectionState.disconnected;
@@ -60,6 +65,46 @@ class BleService implements BleServiceInterface {
   void _setState(BleConnectionState newState) {
     _state = newState;
     _connectionStateController.add(newState);
+
+    // 意外断开时自动重连
+    if (newState == BleConnectionState.disconnected && _lastDeviceId != null) {
+      _startReconnect();
+    } else if (newState == BleConnectionState.connected) {
+      _stopReconnect();
+    }
+  }
+
+  void _startReconnect() {
+    if (_reconnectTimer != null) return;
+    _reconnectAttempts = 0;
+    debugPrint('[BleService] 开始自动重连');
+    _reconnectTimer = Timer.periodic(
+      Duration(milliseconds: _reconnectDelayMs),
+      (_) => _tryReconnect(),
+    );
+  }
+
+  void _stopReconnect() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _reconnectAttempts = 0;
+  }
+
+  Future<void> _tryReconnect() async {
+    if (_lastDeviceId == null || _state != BleConnectionState.disconnected) {
+      _stopReconnect();
+      return;
+    }
+    _reconnectAttempts++;
+    debugPrint('[BleService] 自动重连 $_reconnectAttempts/$_maxReconnectAttempts');
+    try {
+      await connect(_lastDeviceId!);
+    } catch (_) {
+      if (_reconnectAttempts >= _maxReconnectAttempts) {
+        debugPrint('[BleService] 重连失败，已达最大次数');
+        _stopReconnect();
+      }
+    }
   }
 
   @override
@@ -125,7 +170,16 @@ class BleService implements BleServiceInterface {
         timeout: const Duration(seconds: 30),
       );
 
-      // requestMtu may not be available on all platforms (Web, macOS)
+      // 请求高速连接，降低延迟
+      try {
+        await device.requestConnectionPriority(
+          connectionPriorityRequest: ConnectionPriority.high,
+        );
+      } catch (e) {
+        debugPrint('[BleService] requestConnectionPriority: $e');
+      }
+
+      // requestMtu may not be available on all platforms
       try {
         await device.requestMtu(mtu);
       } catch (e) {
@@ -159,6 +213,7 @@ class BleService implements BleServiceInterface {
       }
 
       connectedDeviceMac = deviceId;
+      _lastDeviceId = deviceId;
       _setState(BleConnectionState.connected);
       _startSendTimer();
     } catch (e) {
@@ -171,18 +226,30 @@ class BleService implements BleServiceInterface {
   Future<void> disconnect() async {
     _stopSendTimer();
     if (_connectedDevice != null) {
-      await _connectedDevice!.disconnect();
+      try {
+        await _connectedDevice!.disconnect();
+      } catch (e) {
+        debugPrint('[BleService] explicit disconnect failed: $e');
+      }
       _connectedDevice = null;
     }
     _characteristic = null;
     _sendQueue.clear();
     connectedDeviceMac = null;
+    // 不清理 _lastDeviceId，留给自动重连
     _setState(BleConnectionState.disconnected);
+  }
+
+  /// 主动断开并清除重连记忆
+  void forgetDevice() {
+    _lastDeviceId = null;
+    _stopReconnect();
+    disconnect();
   }
 
   Future<void> _write(List<int> bytes) async {
     if (_characteristic == null) {
-      debugPrint('[BleService] write skipped: characteristic is null');
+      debugPrint('[BleService] write skipped: characteristic null');
       return;
     }
     try {
@@ -190,6 +257,13 @@ class BleService implements BleServiceInterface {
           withoutResponse: _supportsWriteWithoutResponse);
     } catch (e) {
       debugPrint('[BleService] BLE write failed: $e');
+      // 写入失败可能意味着连接已断，触发断开处理
+      if (e.toString().contains('disconnected') ||
+          e.toString().contains('not connected')) {
+        _connectedDevice = null;
+        _characteristic = null;
+        _setState(BleConnectionState.disconnected);
+      }
     }
   }
 
@@ -233,6 +307,8 @@ class BleService implements BleServiceInterface {
 
   @override
   void dispose() {
+    _stopReconnect();
+    _lastDeviceId = null;
     _stopSendTimer();
     _connectionStateController.close();
     _dataReceivedController.close();
