@@ -262,9 +262,13 @@ class BemfaApiService implements BemfaApiServiceBase {
         return DeviceState.tryParse(jsonEncode(decoded));
       }
     } catch (_) {
-      // ignore and fallback below
+      // JSON decode failed, try legacy format below
     }
-    return DeviceState.tryParse(msgValue);
+    final state = DeviceState.tryParse(msgValue);
+    if (state == null && kDebugMode) {
+      debugPrint('[BemfaApi] 状态解析失败: $msgValue');
+    }
+    return state;
   }
 
   /// 判断是否为瞬时性网络错误（DNS/连接闪断）
@@ -280,17 +284,17 @@ class BemfaApiService implements BemfaApiServiceBase {
 
   /// 将技术异常翻译为用户可读的中文信息
   String _friendlyError(Object e, String context) {
-    final msg = e.toString();
-    if (msg.contains('Failed host lookup') || msg.contains('errno')) {
+    final msg = e.toString().toLowerCase();
+    if (msg.contains('failed host lookup') || msg.contains('errno')) {
       return '$context: DNS 解析失败，请检查网络连接';
     }
-    if (msg.contains('SocketException') || msg.contains('Connection refused')) {
+    if (msg.contains('socketexception') || msg.contains('connection refused')) {
       return '$context: 网络连接异常';
     }
-    if (msg.contains('TimeoutException') || msg.contains('timed out')) {
+    if (msg.contains('timeoutexception') || msg.contains('timed out')) {
       return '$context: 请求超时，服务器响应过慢';
     }
-    if (msg.contains('HandshakeException') || msg.contains('CERTIFICATE')) {
+    if (msg.contains('handshakeexception') || msg.contains('certificate')) {
       return '$context: SSL 证书校验失败';
     }
     return '$context: 网络异常';
@@ -330,7 +334,7 @@ class BemfaApiService implements BemfaApiServiceBase {
 
   @override
   void dispose() {
-    _logController.close();
+    if (!_logController.isClosed) _logController.close();
     _client.close();
   }
 }

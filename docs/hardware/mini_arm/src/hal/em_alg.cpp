@@ -101,8 +101,8 @@ bool check_angle(int angleA,int angleB,int angleC){
     return false;
   }
 
-  if(angleB < 0 || angleB > 85){
-    Serial.printf("angleB error %d , must in 0<b<85\n",angleB);
+  if(angleB < 0 || angleB > 80){
+    Serial.printf("angleB error %d , must in 0<b<80\n",angleB);
     return false;
   }
 
@@ -110,6 +110,17 @@ bool check_angle(int angleA,int angleB,int angleC){
   float angleCMax = MIN((196-angleB),180);
   if(angleC < angleCMin || angleC > angleCMax){
     Serial.printf("angleC error %d , must in %f<c<%f\n",angleC,angleCMin,angleCMax);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * @brief 检查夹爪范围
+ */
+bool check_grip(int grip) {
+  if (grip < 0 || grip > 37) {
+    Serial.printf("grip error %d , must in 0<grip<37\n", grip);
     return false;
   }
   return true;

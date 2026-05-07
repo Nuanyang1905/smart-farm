@@ -73,12 +73,9 @@ class _MiniArmTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<MiniArmViewModel>(
-      builder: (context, vm, child) {
-        return vm.bleService.isSupported
-            ? const ScanScreen()
-            : const BleUnsupportedScreen();
-      },
-    );
+    final vm = context.read<MiniArmViewModel>();
+    return vm.bleService.isSupported
+        ? const ScanScreen()
+        : const BleUnsupportedScreen();
   }
 }

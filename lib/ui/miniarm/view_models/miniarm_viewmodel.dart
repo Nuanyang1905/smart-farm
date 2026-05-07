@@ -71,6 +71,7 @@ class MiniArmViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
+    _scanSub?.cancel();
     _scanSub = _bleService.scan().listen((results) {
       _devices
         ..clear()

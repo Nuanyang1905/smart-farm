@@ -63,8 +63,8 @@ class DeviceState {
     final humidity = _readInt(decoded, 'hum') ?? 0;
     final isPumpOn = _readBoolLike(decoded['pump']);
     final isAutoMode = _readMode(decoded['mode']);
-    final thL = (_readInt(decoded, 'th_low') ?? 30).clamp(0, 100);
-    final thH = (_readInt(decoded, 'th_high') ?? 60).clamp(thL, 100);
+    final thL = (_readInt(decoded, 'th_low') ?? _readInt(decoded, 'th_L') ?? 30).clamp(0, 100);
+    final thH = (_readInt(decoded, 'th_high') ?? _readInt(decoded, 'th_H') ?? 60).clamp(thL, 100);
     final isLocked = _readBoolLike(decoded['lock']);
 
     return DeviceState(
@@ -83,6 +83,25 @@ class DeviceState {
     try {
       return DeviceState.parse(data);
     } catch (_) {
+      // 尝试 # 分隔符格式: #hum#pump#th#mode
+      final parts = data.split('#').where((s) => s.isNotEmpty).toList();
+      if (parts.length >= 3) {
+        final hum = int.tryParse(parts[0]);
+        final pump = int.tryParse(parts[1]);
+        final th = int.tryParse(parts[2]);
+        final mode = parts.length >= 4 ? (int.tryParse(parts[3]) ?? 1) : 1;
+        if (hum != null && pump != null && th != null) {
+          return DeviceState(
+            humidity: hum,
+            isPumpOn: pump == 1,
+            thL: th,
+            thH: th + 20,
+            isAutoMode: mode == 1,
+            isLocked: false,
+            lastUpdate: DateTime.now(),
+          );
+        }
+      }
       return null;
     }
   }

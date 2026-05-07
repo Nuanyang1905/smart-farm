@@ -93,28 +93,7 @@
 
 ---
 
-### BUG-007 — 🔌 `SMART_WATERING_PROTOCOL_V2.md` 文档与实际固件不符
-
-| 属性 | 内容 |
-|------|------|
-| **文件** | `docs/SMART_WATERING_PROTOCOL_V2.md` |
-| **现象** | 文档描述 JSON v2 包含 `ver`, `type`, `raw`, `sensor_ok` 字段，但 Arduino 固件实际不发送这些字段 |
-| **固件实际格式** | `{"hum":45,"pump":1,"mode":"auto","th_low":30,"th_high":60,"lock":0}` |
-| **文档声称格式** | `{"ver":2,"type":"status","hum":45,"raw":678,"pump":0,"mode":"auto","th_low":30,"th_high":60,"lock":0,"sensor_ok":1}` |
-| **修复建议** | 更新文档以匹配 Arduino `sendStatusToCloud()` 实际输出；或反过来更新固件以发送完整字段 |
-
----
-
 ## 🟡 中等（边缘情况 / UX 问题）
-
-### ~~BUG-008~~ — BLE 意外断开时静默踢回主页 ✅ 已修复
-
-| 属性 | 内容 |
-|------|------|
-| **修复日期** | 2026-05-07 |
-| **更改** | `control_screen.dart`: 断开时先弹 SnackBar「蓝牙已断开，返回扫描页」再 pop |
-
----
 
 ### BUG-009 — BLE 扫描流订阅可能泄漏
 

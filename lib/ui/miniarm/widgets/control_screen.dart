@@ -165,9 +165,11 @@ class _ControlScreenState extends State<ControlScreen> {
             _sendAngleCommand();
           }),
           _buildSlider('B轴', _val2, _min2.toDouble(), _max2.toDouble(),
-              (v) => _val2 = v, () {
+              (v) {
+                _val2 = v;
+                _updateCFromB(v); // 立即更新C轴范围，不受节流影响
+              }, () {
             _sendAngleCommand();
-            _updateCFromB(_val2);
           }),
           _buildSlider('C轴', _val3, _cMin, _cMax, (v) => _val3 = v, () {
             _sendAngleCommand();
