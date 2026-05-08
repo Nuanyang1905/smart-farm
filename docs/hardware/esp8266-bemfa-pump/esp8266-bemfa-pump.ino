@@ -36,9 +36,9 @@
 // 1. CONFIGURATION -- edit these for your setup
 // =============================================================================
 
-const char* WIFI_SSID     = "your_ssid";
-const char* WIFI_PASS     = "your_password";
-const char* BEMFA_UID     = "your_uid_private_key";
+const char* WIFI_SSID     = "TP-LINK_6ABD";
+const char* WIFI_PASS     = "88888888";
+const char* BEMFA_UID     = "f148fce62c08490e9ffe25b43948c5c8";
 const char* MQTT_SERVER   = "mqttv2.bemfa.com";
 const int   MQTT_PORT     = 2023;
 const char* TOPIC_CMD     = "waterpump001";

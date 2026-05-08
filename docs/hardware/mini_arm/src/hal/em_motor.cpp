@@ -71,6 +71,13 @@ void em_motor_run_by_angle(uint8_t angle1,uint8_t angle2,uint8_t angle3,uint8_t 
     list.set_angle[3] = angle4;
 }
 
+/// 只更新位置，不动夹爪
+void em_motor_move_position(uint8_t angle1,uint8_t angle2,uint8_t angle3){
+    list.set_angle[0] = angle1;
+    list.set_angle[1] = angle2;
+    list.set_angle[2] = angle3;
+}
+
 void em_motor_init()
 {
     // 例如，如果范围是500us到2000us， 500us等于0的角，1500us等于90度，2500us等于1800 度。

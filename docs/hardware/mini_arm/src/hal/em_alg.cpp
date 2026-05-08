@@ -57,9 +57,6 @@ void inverse_operation(float x,float y,float z){
   //=180-(83.5+(180-69-(temp2)-(temp1)-(DEGREES(ACOS((145^2+135^2-(-SIGN(B15)*SQRT(B15^2+D15^2)-67)^2-(C15-65.5)^2)/(2*145*135)))))
   float temp3 = degrees(acos((145.0*145.0+135.0*135.0-square(-sgn(x)*sqrt(x*x+z*z)-67.0)-square(y-65.5))/(2.0*145.0*135.0)));
   angleC =180.0-(83.5+(180.0-69.0-temp2-temp1)-temp3);
-  // Serial.printf("angleC = %f\n",angleC);
-
-  Serial.printf("angle=[%f,%f,%f]\n",angleA,angleB,angleC);
 } 
 
 /**
@@ -82,8 +79,6 @@ void alg_positive_operation(float angleA,float angleB,float angleC){
 
   //=-SIN(RADIANS((B8-90)/(72/28)))*-(135*COS(RADIANS(111-C8))+145*SIN(RADIANS((83.5+C8-(180-D8))-C8+21))+67)
   absoluteZ = -sin(radians((angleA-90.0)/(72.0/28.0)))*temp;
-  // Serial.printf("z = %f\n",z);
-  Serial.printf("coordinate=[%f,%f,%f]\n",absoluteX,absoluteY,absoluteZ);
 }
 
 /**
@@ -157,7 +152,7 @@ void alg_move_run(){
   inverse_operation(absoluteX,absoluteY,absoluteZ);
   if(check_angle(angleA,angleB,angleC) == true){
     //TODO run
-    em_motor_run_by_angle(angleA,angleB,angleC,0);
+    em_motor_move_position(angleA,angleB,angleC);
   }else{
     //TODO reset
     if(moveX > 0)

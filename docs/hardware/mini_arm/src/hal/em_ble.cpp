@@ -43,8 +43,6 @@ class bleCharacteristicCallbacks : public BLECharacteristicCallbacks
             //0xA5 0xA5 0x01 angle1 angle2 angle3 angle4 
             if(pdata[0] == 0xA5 && pdata[1] == 0xA5 && pdata[2] == 0x01 ){
                 //控制指令
-                // Serial.printf("控制指令\n");
-                Serial.write(pdata,8);
                 em_motor_run(pdata+3);
             }
         }
@@ -54,11 +52,6 @@ class bleCharacteristicCallbacks : public BLECharacteristicCallbacks
                 alg_set_move_action(pdata+3);
             }
         }
-        for (int index = 0; index < length; index++)
-        {
-            Serial.printf(" %d", pdata[index]);
-        }
-        Serial.printf("\n");
     }
 };
 
