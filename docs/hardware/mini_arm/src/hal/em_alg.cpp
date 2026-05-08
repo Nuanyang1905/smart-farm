@@ -116,17 +116,6 @@ bool check_angle(int angleA,int angleB,int angleC){
 }
 
 /**
- * @brief 检查夹爪范围
- */
-bool check_grip(int grip) {
-  if (grip < 0 || grip > 37) {
-    Serial.printf("grip error %d , must in 0<grip<37\n", grip);
-    return false;
-  }
-  return true;
-}
-
-/**
  * @brief 设置移动动作
  * 
  */

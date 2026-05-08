@@ -39,22 +39,24 @@ static uint8_t em_motor_speed_ctl_run(uint8_t id,uint8_t set_angle,uint8_t now_a
 static void motor_timer_callbackfun(){
     for(int index = 0;index < SERVO_NUM;index ++){
         list.last_angle[index] = em_motor_speed_ctl_run(index, list.set_angle[index] ,list.last_angle[index]);
-        alg_move_run();
     }
+    alg_move_run();
 }
 
-static bool check_angle(uint8_t *angle)
+static bool check_angle(uint8_t *angle, uint8_t grip)
 {
     for(int index = 0;index < SERVO_NUM ;index ++){
-        if (angle[index] < 0 || angle[index] > 180)
+        if (angle[index] > 180)
             return false;
     }
+    if (grip > 37)
+        return false;
     return true;
 }
 
 void em_motor_run(uint8_t *angle)
 {
-    if (check_angle(angle) == false)
+    if (check_angle(angle, angle[3]) == false)
         return;
     for(int index = 0;index < SERVO_NUM;index ++){
         list.set_angle[index] = angle[index];
