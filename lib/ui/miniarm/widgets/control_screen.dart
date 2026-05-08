@@ -25,7 +25,7 @@ class _ControlScreenState extends State<ControlScreen> {
   bool _isTransmitting = false;
 
   static const int _min1 = 0, _max1 = 180;
-  static const int _min2 = 0, _max2 = 80;
+  static const int _min2 = 0, _max2 = 85;
   static const int _min4 = 0, _max4 = 37;
 
   double _val1 = 90;

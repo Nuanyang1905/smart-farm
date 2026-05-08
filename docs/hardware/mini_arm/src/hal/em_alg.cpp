@@ -101,8 +101,8 @@ bool check_angle(int angleA,int angleB,int angleC){
     return false;
   }
 
-  if(angleB < 0 || angleB > 80){
-    Serial.printf("angleB error %d , must in 0<b<80\n",angleB);
+  if(angleB < 0 || angleB > 85){
+    Serial.printf("angleB error %d , must in 0<b<85\n",angleB);
     return false;
   }
 
